@@ -10,9 +10,29 @@ require('dotenv').config();
 const prisma = new PrismaClient();
 const app = express();
 const port = Number(process.env.PORT) || 4000;
-const jwtSecret = process.env.JWT_SECRET || 'balancevault-dev-secret';
+const jwtSecret = process.env.JWT_SECRET;
+const frontendOrigin = process.env.FRONTEND_ORIGIN;
 
-app.use(cors({ origin: true, credentials: true }));
+if (!jwtSecret || Buffer.byteLength(jwtSecret, 'utf8') < 32) {
+  throw new Error('JWT_SECRET must be set to a random secret of at least 32 bytes.');
+}
+
+if (!frontendOrigin) {
+  throw new Error('FRONTEND_ORIGIN must be set to the frontend origin allowed to access this API.');
+}
+
+let parsedFrontendOrigin;
+try {
+  parsedFrontendOrigin = new URL(frontendOrigin);
+} catch {
+  throw new Error('FRONTEND_ORIGIN must be a valid HTTP or HTTPS origin.');
+}
+
+if (!['http:', 'https:'].includes(parsedFrontendOrigin.protocol) || parsedFrontendOrigin.origin !== frontendOrigin) {
+  throw new Error('FRONTEND_ORIGIN must be a valid HTTP or HTTPS origin without a path or trailing slash.');
+}
+
+app.use(cors({ origin: frontendOrigin, credentials: true }));
 app.use(helmet());
 app.use(express.json());
 
@@ -49,32 +69,46 @@ function createToken(user) {
   return jwt.sign({ userId: user.id, role: user.role }, jwtSecret, { expiresIn: '7d' });
 }
 
-async function seedDemoData() {
-  const adminEmail = 'admin@balancevault.dev';
-  const demoEmail = 'demo@balancevault.dev';
+async function seedAdmin() {
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail && !adminPassword) {
+    return;
+  }
+
+  if (!adminEmail || !adminPassword) {
+    throw new Error('Set both ADMIN_EMAIL and ADMIN_PASSWORD to provision the initial administrator.');
+  }
+
+  if (!z.string().email().safeParse(adminEmail).success) {
+    throw new Error('ADMIN_EMAIL must be a valid email address.');
+  }
+
+  if (Buffer.byteLength(adminPassword, 'utf8') < 16) {
+    throw new Error('ADMIN_PASSWORD must be at least 16 bytes.');
+  }
 
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
-  if (!existingAdmin) {
-    const admin = await prisma.user.create({
-      data: {
-        name: 'System Admin',
-        email: adminEmail,
-        passwordHash: await bcrypt.hash('admin123', 10),
-        role: 'ADMIN',
-      },
-    });
-
-    await prisma.account.create({
-      data: {
-        userId: admin.id,
-        name: 'Treasury Control',
-        type: 'CHECKING',
-        balance: 60000,
-        status: 'ACTIVE',
-        currency: 'USD',
-      },
-    });
+  if (existingAdmin) {
+    if (existingAdmin.role !== 'ADMIN') {
+      throw new Error('ADMIN_EMAIL already belongs to a non-administrator account.');
+    }
+    return;
   }
+
+  await prisma.user.create({
+    data: {
+      name: 'System Admin',
+      email: adminEmail,
+      passwordHash: await bcrypt.hash(adminPassword, 10),
+      role: 'ADMIN',
+    },
+  });
+}
+
+async function seedDemoData() {
+  const demoEmail = 'demo@balancevault.dev';
 
   const existingDemo = await prisma.user.findUnique({ where: { email: demoEmail } });
   if (!existingDemo) {
@@ -375,6 +409,7 @@ app.post('/api/admin/accounts/:id/approve', requireAuth, requireRole('ADMIN'), a
 });
 
 async function startServer() {
+  await seedAdmin();
   await seedDemoData();
   app.listen(port, () => {
     console.log(`BalanceVault API running on http://localhost:${port}`);
