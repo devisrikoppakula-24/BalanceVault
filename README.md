@@ -122,14 +122,12 @@ There is currently no automated backend integration-test script. These commands 
 
 ## Deployment
 
-The repository includes a Render Blueprint in `render.yaml` for the API and a Vercel rewrite in `frontend/vercel.json` for client-side routes. Deploy the two services and connect them to a PostgreSQL database (for example, Neon) as follows:
+The repository includes a Render Blueprint in `render.yaml` for both the API and static frontend, so it can deploy from a public GitHub repository without connecting a Vercel account. It uses Render's free web-service plan for the API and a free static site; the API may spin down after inactivity.
 
-1. Create a fresh PostgreSQL database and keep its connection string private.
-2. In Render, create a Blueprint from this repository and apply `render.yaml`. Set `DATABASE_URL` to the PostgreSQL connection string and `FRONTEND_ORIGIN` to the exact Vercel site origin (for example, `https://your-site.vercel.app`, without a trailing slash). Render generates `JWT_SECRET` for the API.
-3. Before starting the API against a fresh database, apply the Prisma schema from the backend directory with `npm run db:push`, using the production `DATABASE_URL`. This command changes the target database; verify the URL before running it. It does not migrate existing data.
-4. In Vercel, import the repository and set the project root directory to `frontend`. Set `VITE_API_URL` to the Render API origin (for example, `https://balancevault-api.onrender.com`) for the production environment, then deploy. The Vercel configuration rewrites client-side routes to `index.html`.
-5. Update Render's `FRONTEND_ORIGIN` to the final Vercel origin and redeploy the API if it changed.
-6. Verify `https://<your-api-host>/api/health`, then test registration, login, account onboarding/approval, and ledger operations using synthetic data.
+1. In Render, create a Blueprint from this repository's `main` branch and apply `render.yaml`.
+2. Set `DATABASE_URL` privately to a PostgreSQL database URL. Render generates `JWT_SECRET`; the Blueprint sets the API CORS origin and frontend API URL to the two Render service domains.
+3. Before using a fresh PostgreSQL database, apply the Prisma schema from the backend directory with `npm run db:push`, using the production `DATABASE_URL`. Verify the URL before running this command; it changes the target database and does not migrate existing data.
+4. Verify `https://balancevault-api.onrender.com/api/health`, then test registration, login, account onboarding/approval, and ledger operations using synthetic data.
 
 Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in Render only when provisioning an administrator. The backend seeds the public demo user on startup, so deploy only with synthetic demo data. Do not use real financial or personal information. If the database contains an old demo administrator, disable or remove that account and rotate its credentials before deployment. Never commit secrets or put them in `VITE_*` variables.
 
