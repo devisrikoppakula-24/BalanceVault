@@ -2,6 +2,7 @@ services:
   - type: web
     name: balancevault-api
     runtime: node
+    plan: free
     rootDir: backend
     buildCommand: npm ci && npx prisma generate
     startCommand: npm start
