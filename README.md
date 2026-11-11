@@ -122,14 +122,16 @@ There is currently no automated backend integration-test script. These commands 
 
 ## Deployment
 
-- Use PostgreSQL (for example, Neon) and set `DATABASE_URL` in the backend's deployment environment.
-- Set a unique random `JWT_SECRET` of at least 32 bytes and `FRONTEND_ORIGIN` to the exact deployed frontend origin.
-- Set the frontend's `VITE_API_URL` to the deployed backend URL.
-- Configure `ADMIN_EMAIL` and `ADMIN_PASSWORD` only when provisioning an administrator.
-- Use a fresh PostgreSQL database or migrate existing data separately. If a database contains the old demo administrator, disable or remove that account and rotate its credentials before deployment.
-- The project has no documented deployment pipeline in this repository. The following URLs were supplied with the project review; their current availability and deployment configuration have not been independently verified:
-  - [Reported demo](https://balance-vault.vercel.app/)
-  - [GitHub repository](https://github.com/siriramaiah24-gif/balanceVault)
+The repository includes a Render Blueprint in `render.yaml` for the API and a Vercel rewrite in `frontend/vercel.json` for client-side routes. Deploy the two services and connect them to a PostgreSQL database (for example, Neon) as follows:
+
+1. Create a fresh PostgreSQL database and keep its connection string private.
+2. In Render, create a Blueprint from this repository and apply `render.yaml`. Set `DATABASE_URL` to the PostgreSQL connection string and `FRONTEND_ORIGIN` to the exact Vercel site origin (for example, `https://your-site.vercel.app`, without a trailing slash). Render generates `JWT_SECRET` for the API.
+3. Before starting the API against a fresh database, apply the Prisma schema from the backend directory with `npm run db:push`, using the production `DATABASE_URL`. This command changes the target database; verify the URL before running it. It does not migrate existing data.
+4. In Vercel, import the repository and set the project root directory to `frontend`. Set `VITE_API_URL` to the Render API origin (for example, `https://balancevault-api.onrender.com`) for the production environment, then deploy. The Vercel configuration rewrites client-side routes to `index.html`.
+5. Update Render's `FRONTEND_ORIGIN` to the final Vercel origin and redeploy the API if it changed.
+6. Verify `https://<your-api-host>/api/health`, then test registration, login, account onboarding/approval, and ledger operations using synthetic data.
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in Render only when provisioning an administrator. The backend seeds the public demo user on startup, so deploy only with synthetic demo data. Do not use real financial or personal information. If the database contains an old demo administrator, disable or remove that account and rotate its credentials before deployment. Never commit secrets or put them in `VITE_*` variables.
 
 ## Known limitations
 
