@@ -26,4 +26,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://balancevault-api.onrender.com
+        value: https://balancevault-api-vd3d.onrender.com
